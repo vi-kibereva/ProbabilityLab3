@@ -1,0 +1,195 @@
+`---
+title: "lab3"
+output: html_document
+---
+
+### Work breakdown:
+
+Problem 1: Viktoriya Kibyeryeva\
+Problem 2:\
+Problem 3:
+
+# Problem 1
+
+```{r}
+team_id <- 33
+set.seed(team_id)
+sample_sizes <- c(10, 50, 100, 200)
+alphas <- c(0.1, 0.05, 0.01)
+num_repetitions <- c(100, 500, 1000)
+theta <- team_id / 10
+lambda <- 1 / theta
+
+```
+
+The distribution:\
+$X \sim E(\lambda)$\
+It's mean:\
+$\mu = 1/\lambda$\
+Then a good estimate for $\theta = 1/\lambda$ is sample mean $\overline{X}$.\
+
+We need to form confidence intervals.
+
+### 1.Using exact distribution of the statistics $2\lambda n \overline{X}$
+
+$X_i$ - iid rvs, so $S_x \sim G(n, \lambda)$\
+For exponential distribution, $M_x(t) = (1 - t/\lambda)^{-1}$\
+Because variables are independent, mgf of the sum is the product of mgfs\
+$M_s(t) = (1-t/\lambda)^{-n}$\
+\$Y = 2\lambda n \overline{X} \$\$S = n \* \overline{X}\$\
+Then $Y = 2\lambda S$\
+$M_Y(t) = E(t^{Y}) = E(t^{2\lambda S}) = M_S(2\lambda t) = (1-2\lambda t/\lambda))^{-n} = (1-2t)^{-n}$\
+We can recognize the formula of mgf of Chi-squared distribution\
+So $Y\sim \chi_{2n}^2$\
+Constructing confidence interval:\
+$P(\chi_{1-\alpha/2,2n}^2\leq Y\leq\chi_{\alpha/2,2n}^2)=1-\alpha$\
+$P(\chi_{1-\alpha/2,2n}^2\leq 2n\overline{X}/\theta\leq\chi_{\alpha/2,2n}^2)=1-\alpha$\
+So our confidence interval is $[2n\overline{X}/\chi_{\alpha/2,2n}^2, 2n\overline{X}/(\chi_{1-\alpha/2,2n}^2]$\
+
+### 2. Using Normal approximation and unknown variance
+
+$P(|\theta-\overline{X}|\leq z_{\beta}\theta/\sqrt{n}) = P(|Z|\leq z_{\beta}) = 2\beta-1$
+
+### 3. Solving above for theta
+
+$(|\theta-\overline{X}|\leq z_{\beta}\theta/\sqrt{n}) = P(-z_{\beta}\theta/\sqrt{n} \leq \overline{X}- \theta\leq z_{\beta}\theta/\sqrt{n}) = P(-z_{\beta}\theta/\sqrt{n} +\theta \leq \overline{X}\leq z_{\beta}\theta/\sqrt{n}+\theta) = P(\overline{X}/(1 + z_{\beta}/\sqrt{n}) \leq \theta \leq \overline{X}/(1 - z_{\beta}/\sqrt{n}))$\
+So confidence interval is\
+$[\overline{X}/(1+z/\sqrt{n}), \overline{X}/(1-z/\sqrt{n})]$
+
+### 4. Using student distribution
+
+We approximate standard error as $s = \sqrt{\Sigma(X_i-\overline{X})^2/(n-1)}$
+So our confidence interval is $\overline{X}\pm t_{n-1, \alpha/2} * s/\sqrt{n}$
+
+
+```{r}
+
+results <- data.frame()
+
+for (n in num_repetitions){
+  for (size in sample_sizes){
+    # Creating sample
+    data <- matrix(rexp(size * n, rate = lambda), nrow = size, ncol = n)
+    x_bar <- colMeans(data)
+    s <- apply(data, 2, sd)
+    for (alpha in alphas) {
+    z_crit <- qnorm(1 - alpha / 2)
+    t_crit <- qt(1 - alpha / 2, df = size - 1)
+    chi_lower <- qchisq(alpha / 2, df = 2 * size)
+    chi_upper <- qchisq(1 - alpha / 2, df = 2 * size)
+    # Method 1
+    m1_lower <- (2 * size * x_bar) / chi_upper
+    m1_upper <- (2 * size * x_bar) / chi_lower
+    # Method 2
+    se_true <- theta / sqrt(size)
+    m2_lower <- x_bar - z_crit * se_true
+    m2_upper <- x_bar + z_crit * se_true
+    # Method 3
+    denom_plus <- 1 + (z_crit / sqrt(size))
+    denom_minus <- 1 - (z_crit / sqrt(size))
+    m3_lower <- x_bar / denom_plus
+    m3_upper <- x_bar / denom_minus
+    se_est <- s / sqrt(size)
+    m4_lower <- x_bar - t_crit * se_est
+    m4_upper <- x_bar + t_crit * se_est
+    cov1 <- mean(m1_lower <= theta & theta <= m1_upper)
+    cov2 <- mean(m2_lower <= theta & theta <= m2_upper)
+    cov3 <- mean(m3_lower <= theta & theta <= m3_upper)
+    cov4 <- mean(m4_lower <= theta & theta <= m4_upper)
+    len1 <- mean(m1_upper - m1_lower)
+    len2 <- mean(m2_upper - m2_lower)
+    len3 <- mean(m3_upper - m3_lower)
+    len4 <- mean(m4_upper - m4_lower)
+    results <- rbind(results, data.frame(
+        Reps_m = n,
+        Size_n = size,
+        Alpha = alpha,
+        Method = c("1.Exact", "2.Norm(K)", "3.Norm(Inv)", "4.Student-t"),
+        Coverage = c(cov1, cov2, cov3, cov4),
+        AvgLength = c(len1, len2, len3, len4)
+      ))
+    }
+  }
+}
+results_sorted <- results[order(results$Method, results$Size_n, results$Reps_m), ]
+
+print(format(results_sorted, digits = 4))
+```
+```{r}
+precision_data <- results[, c("Reps_m", "Size_n", "Alpha", "Method", "AvgLength")]
+stats <- reshape(precision_data, 
+                          idvar = c("Reps_m", "Size_n", "Alpha"), 
+                          timevar = "Method", 
+                          direction = "wide")
+
+colnames(stats_wide_all) <- gsub("AvgLength.", "", colnames(stats_wide_all))
+
+stats <- stats_wide_all[order(stats_wide_all$Reps_m, stats_wide_all$Size_n, stats_wide_all$Alpha), ]
+
+print(stats_wide_all, row.names = FALSE)
+```
+
+```{r}
+coverage_data <- results[, c("Reps_m", "Size_n", "Alpha", "Method", "Coverage")]
+
+cov_wide_all <- reshape(coverage_data, 
+                        idvar = c("Reps_m", "Size_n", "Alpha"), 
+                        timevar = "Method", 
+                        direction = "wide")
+
+colnames(cov_wide_all) <- gsub("Coverage.", "", colnames(cov_wide_all))
+
+cov_wide_all$Target <- 1 - cov_wide_all$Alpha
+
+cols <- c("Reps_m", "Size_n", "Alpha", "Target", setdiff(names(cov_wide_all), c("Reps_m", "Size_n", "Alpha", "Target")))
+cov_wide_all <- cov_wide_all[, cols]
+
+cov_wide_all <- cov_wide_all[order(cov_wide_all$Reps_m, cov_wide_all$Size_n, cov_wide_all$Alpha), ]
+
+print(cov_wide_all, row.names = FALSE)
+```
+
+
+```{r}
+plot_reps <- max(num_repetitions)
+plot_alpha <- 0.05
+plot_data <- subset(results, Reps_m == plot_reps & Alpha == plot_alpha)
+
+methods <- unique(plot_data$Method)
+colors <- c("red", "blue", "darkgreen", "purple")
+pch_types <- 1:4
+
+par(mfrow = c(1, 2)) 
+
+y_min <- min(plot_data$Coverage, 1 - plot_alpha) - 0.02
+y_max <- max(plot_data$Coverage, 1 - plot_alpha) + 0.02
+
+plot(range(sample_sizes), c(y_min, y_max), type = "n",
+     xlab = "Sample Size (n)", ylab = "Coverage Probability",
+     main = paste("Coverage (Alpha =", plot_alpha, ")"))
+
+abline(h = 1 - plot_alpha, col = "gray", lty = 2, lwd = 2)
+
+for(i in 1:length(methods)){
+  sub_d <- subset(plot_data, Method == methods[i])
+  sub_d <- sub_d[order(sub_d$Size_n), ]
+  lines(sub_d$Size_n, sub_d$Coverage, col = colors[i], type = "b", pch = pch_types[i], lwd = 1.5)
+}
+
+legend("bottomright", legend = methods, col = colors, pch = pch_types, lty = 1, cex = 0.8, bg = "white")
+
+y_rng <- range(plot_data$AvgLength, na.rm = TRUE)
+
+plot(range(sample_sizes), y_rng, type = "n",
+     xlab = "Sample Size (n)", ylab = "Average Length",
+     main = "Interval Length (Precision)")
+
+for(i in 1:length(methods)){
+  sub_d <- subset(plot_data, Method == methods[i])
+  sub_d <- sub_d[order(sub_d$Size_n), ]
+  lines(sub_d$Size_n, sub_d$AvgLength, col = colors[i], type = "b", pch = pch_types[i], lwd = 1.5)
+}
+
+legend("topright", legend = methods, col = colors, pch = pch_types, lty = 1, cex = 0.8, bg = "white")
+
+```
