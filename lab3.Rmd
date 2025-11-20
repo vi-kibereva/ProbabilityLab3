@@ -1,20 +1,17 @@
-`---
-title: "lab3"
-output: html_document
----
+\`--- title: "lab3" output: html_document ---
 
 ### Work breakdown:
 
 Problem 1: Viktoriya Kibyeryeva\
 Problem 2:\
-Problem 3:
+Problem 3:\
 
 # Problem 1
 
 ```{r}
 team_id <- 33
 set.seed(team_id)
-sample_sizes <- c(10, 50, 100, 200)
+sample_sizes <- c(50, 100, 200, 500, 1000)
 alphas <- c(0.1, 0.05, 0.01)
 num_repetitions <- c(100, 500, 1000)
 theta <- team_id / 10
@@ -25,8 +22,8 @@ lambda <- 1 / theta
 The distribution:\
 $X \sim E(\lambda)$\
 It's mean:\
-$\mu = 1/\lambda$\
-Then a good estimate for $\theta = 1/\lambda$ is sample mean $\overline{X}$.\
+$\mu = 1/ \lambda$\
+Then a good estimate for $\theta = 1/ \lambda$ is sample mean $\overline{X}$.\
 
 We need to form confidence intervals.
 
@@ -36,7 +33,7 @@ $X_i$ - iid rvs, so $S_x \sim G(n, \lambda)$\
 For exponential distribution, $M_x(t) = (1 - t/\lambda)^{-1}$\
 Because variables are independent, mgf of the sum is the product of mgfs\
 $M_s(t) = (1-t/\lambda)^{-n}$\
-\$Y = 2\lambda n \overline{X} \$\$S = n \* \overline{X}\$\
+$Y = 2\lambda n \overline{X} \$\$S = n \* \overline{X}$\
 Then $Y = 2\lambda S$\
 $M_Y(t) = E(t^{Y}) = E(t^{2\lambda S}) = M_S(2\lambda t) = (1-2\lambda t/\lambda))^{-n} = (1-2t)^{-n}$\
 We can recognize the formula of mgf of Chi-squared distribution\
@@ -58,9 +55,7 @@ $[\overline{X}/(1+z/\sqrt{n}), \overline{X}/(1-z/\sqrt{n})]$
 
 ### 4. Using student distribution
 
-We approximate standard error as $s = \sqrt{\Sigma(X_i-\overline{X})^2/(n-1)}$
-So our confidence interval is $\overline{X}\pm t_{n-1, \alpha/2} * s/\sqrt{n}$
-
+We approximate standard error as $s = \sqrt{\Sigma(X_i-\overline{X})^2/(n-1)}$ So our confidence interval is $\overline{X}\pm t_{n-1, \alpha/2} * s/\sqrt{n}$
 
 ```{r}
 
@@ -90,8 +85,10 @@ for (n in num_repetitions){
     m3_lower <- x_bar / denom_plus
     m3_upper <- x_bar / denom_minus
     se_est <- s / sqrt(size)
+    # Method 4
     m4_lower <- x_bar - t_crit * se_est
     m4_upper <- x_bar + t_crit * se_est
+    # Calculating the results
     cov1 <- mean(m1_lower <= theta & theta <= m1_upper)
     cov2 <- mean(m2_lower <= theta & theta <= m2_upper)
     cov3 <- mean(m3_lower <= theta & theta <= m3_upper)
@@ -104,7 +101,7 @@ for (n in num_repetitions){
         Reps_m = n,
         Size_n = size,
         Alpha = alpha,
-        Method = c("1.Exact", "2.Norm(K)", "3.Norm(Inv)", "4.Student-t"),
+        Method = c("1.Exact", "2.Norm(theta)", "3.Norm(se)", "4.Student-t"),
         Coverage = c(cov1, cov2, cov3, cov4),
         AvgLength = c(len1, len2, len3, len4)
       ))
@@ -115,6 +112,7 @@ results_sorted <- results[order(results$Method, results$Size_n, results$Reps_m),
 
 print(format(results_sorted, digits = 4))
 ```
+
 ```{r}
 precision_data <- results[, c("Reps_m", "Size_n", "Alpha", "Method", "AvgLength")]
 stats <- reshape(precision_data, 
@@ -122,33 +120,32 @@ stats <- reshape(precision_data,
                           timevar = "Method", 
                           direction = "wide")
 
-colnames(stats_wide_all) <- gsub("AvgLength.", "", colnames(stats_wide_all))
+colnames(stats) <- gsub("AvgLength.", "", colnames(stats))
 
-stats <- stats_wide_all[order(stats_wide_all$Reps_m, stats_wide_all$Size_n, stats_wide_all$Alpha), ]
+stats <- stats[order(stats$Reps_m, stats$Size_n, stats$Alpha), ]
 
-print(stats_wide_all, row.names = FALSE)
+print(stats, row.names = FALSE)
 ```
 
 ```{r}
 coverage_data <- results[, c("Reps_m", "Size_n", "Alpha", "Method", "Coverage")]
 
-cov_wide_all <- reshape(coverage_data, 
+cov <- reshape(coverage_data, 
                         idvar = c("Reps_m", "Size_n", "Alpha"), 
                         timevar = "Method", 
                         direction = "wide")
 
-colnames(cov_wide_all) <- gsub("Coverage.", "", colnames(cov_wide_all))
+colnames(cov) <- gsub("Coverage.", "", colnames(cov))
 
-cov_wide_all$Target <- 1 - cov_wide_all$Alpha
+cov$Target <- 1 - cov$Alpha
 
-cols <- c("Reps_m", "Size_n", "Alpha", "Target", setdiff(names(cov_wide_all), c("Reps_m", "Size_n", "Alpha", "Target")))
-cov_wide_all <- cov_wide_all[, cols]
+cols <- c("Reps_m", "Size_n", "Alpha", "Target", setdiff(names(cov), c("Reps_m", "Size_n", "Alpha", "Target")))
+cov <- cov[, cols]
 
-cov_wide_all <- cov_wide_all[order(cov_wide_all$Reps_m, cov_wide_all$Size_n, cov_wide_all$Alpha), ]
+cov <- cov[order(cov$Reps_m, cov$Size_n, cov$Alpha), ]
 
-print(cov_wide_all, row.names = FALSE)
+print(cov, row.names = FALSE)
 ```
-
 
 ```{r}
 plot_reps <- max(num_repetitions)
@@ -193,3 +190,8 @@ for(i in 1:length(methods)){
 legend("topright", legend = methods, col = colors, pch = pch_types, lty = 1, cex = 0.8, bg = "white")
 
 ```
+
+As we can see, using exact distribution demonstrates the most stable performance.\
+Approximation with normal distribution gives a bit worse results, both in the case of using unknown variance and estimating it using sample standard error.\
+Approximation with Student distribution works the worst at smaller sample sizes, but as sizes get bigger it's performance increases.\
+Theoretically, the best approach is using exact distribution because it is guaranteed to give the right result, but we can see, that as sample sizes get bigger all of the approaches start performing really well.\
