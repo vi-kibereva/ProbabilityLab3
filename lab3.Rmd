@@ -3,7 +3,7 @@
 ### Work breakdown:
 
 Problem 1: Viktoriya Kibyeryeva\
-Problem 2:\
+Problem 2: Arsen Botkso\
 Problem 3:\
 
 # Problem 1
@@ -194,4 +194,224 @@ legend("topright", legend = methods, col = colors, pch = pch_types, lty = 1, cex
 As we can see, using exact distribution demonstrates the most stable performance.\
 Approximation with normal distribution gives a bit worse results, both in the case of using unknown variance and estimating it using sample standard error.\
 Approximation with Student distribution works the worst at smaller sample sizes, but as sizes get bigger it's performance increases.\
-Theoretically, the best approach is using exact distribution because it is guaranteed to give the right result, but we can see, that as sample sizes get bigger all of the approaches start performing really well.\
+Theoretically, the best approach is using exact distribution because it is guaranteed to give the right result, but we can see, that as sample sizes get bigger all of the approaches start performing really well.
+
+# Problem 2
+
+In this problem we repeat the simulation from Problem 1, but for the Poisson distribution.
+
+For the Poisson distribution: E(X) = $\theta$ , Var(X) = $\theta$
+
+Sample mean:$$
+\bar X = \frac{1}{n} \sum_{i=1}^n X_i
+$$
+
+By the Central Limit Theorem, for large $n$, $$\bar X \approx N\left(\theta,\ \frac{\theta}{n}\right).$$
+
+### 2) Using the normal approximation for $\bar X$
+
+$$
+\mathbb{E}[\bar X] = \theta, \quad \operatorname{Var}(\bar X) = \frac{\theta}{n}.
+$$
+
+Using the Central Limit Theorem, we approximate the distribution of $\bar X$ by $$
+\bar X \approx N\left(\mu, \sigma^2\right), \quad  \mu = \theta,\ \sigma^2 = \frac{\theta}{n}.
+$$
+
+$$
+Z = \frac{\bar X - \theta}{\sqrt{\theta/n}} 
+$$ and use the fact that it is approximately standard normal $N(0,1)$ to get
+
+$$
+P\left( \left|\bar X - \theta\right| \le z_\beta \sqrt{\frac{\theta}{n}} \right)
+= P\left( |Z| \le z_\beta \right)
+= 2\beta - 1.
+$$
+
+### 3) Solving above for $\theta$
+
+We have the inequality $$
+|\bar X - \theta| \le z_\beta \sqrt{\frac{\theta}{n}}.
+$$
+
+Squaring and rearranging, we get a quadratic inequality in $\theta$: $$
+(\bar X - \theta)^2 \le z_\beta^2 \frac{\theta}{n}
+$$ So we can rewrite it like this: $$
+\theta^2 - \left(2\bar X + \frac{z_\beta^2}{n}\right)\theta + \bar X^2 \le 0.
+$$
+
+The roots of this quadratic equation are $$
+\theta_{1,2} =
+\frac{2\bar X + \frac{z_\beta^2}{n} \pm
+\sqrt{\left(2\bar X + \frac{z_\beta^2}{n}\right)^2 - 4\bar X^2}}{2}.
+$$
+
+So the confidence interval is 
+$[\theta_1,\ \theta_2],$
+
+### 4) Using student distribution
+
+We approximate the standard error using the sample standard deviation $s = \sqrt{\Sigma(X_i-\overline{X})^2/(n-1)}$
+
+So our confidence interval is
+
+$\overline{X} \pm t_{n-1,\alpha/2}\,\dfrac{s}{\sqrt{n}}$
+
+
+```{r}
+
+results_poisson <- data.frame()
+
+for (n in num_repetitions){
+  for (size in sample_sizes){
+    # Creating sample
+    data <- matrix(rpois(size * n, lambda = theta), nrow = size, ncol = n)
+    x_bar <- colMeans(data)
+    s <- apply(data, 2, sd)
+    for (alpha in alphas) {
+    z_crit <- qnorm(1 - alpha / 2)
+    t_crit <- qt(1 - alpha / 2, df = size - 1)
+
+    # Method 2
+    se_true <- sqrt(theta / size)
+    m2_lower <- x_bar - z_crit * se_true 
+    m2_upper <- x_bar + z_crit * se_true
+    # Method 3
+    z2_over_n <- (z_crit^2) / size 
+    D <- (2 * x_bar + z2_over_n)^2 - 4 * x_bar^2 
+    D[D < 0] <- 0 
+    sqrtD <- sqrt(D)
+    theta_L <- (2 * x_bar + z2_over_n - sqrtD) / 2 
+    theta_U <- (2 * x_bar + z2_over_n + sqrtD) / 2 
+    m3_lower <- pmax(theta_L, 0) # θ ≥ 0 
+    m3_upper <- theta_U
+    # Method 4
+    se_est <- s / sqrt(size) 
+    m4_lower <- x_bar - t_crit * se_est 
+    m4_upper <- x_bar + t_crit * se_est
+    # Calculating the results
+    cov1 <- mean(m2_lower <= theta & theta <= m2_upper)
+    cov2 <- mean(m3_lower <= theta & theta <= m3_upper)
+    cov3 <- mean(m4_lower <= theta & theta <= m4_upper)
+
+    len1 <- mean(m2_upper - m2_lower)
+    len2 <- mean(m3_upper - m3_lower)
+    len3 <- mean(m4_upper - m4_lower)
+    results_poisson <- rbind(results_poisson, data.frame(
+        Reps_m = n,
+        Size_n = size,
+        Alpha = alpha,
+        Method = c("1.Norm(theta)", "2.Norm(quadratic)", "3.Student-t"),
+        Coverage = c(cov1, cov2, cov3),
+        AvgLength = c(len1, len2, len3)
+      ))
+    }
+  }
+}
+results_sorted <- results[order(results$Method, results$Size_n, results$Reps_m), ]
+
+print(format(results_sorted, digits = 4))
+```
+
+```{r}
+precision_data_pois <- results_poisson[, c("Reps_m", "Size_n", "Alpha", "Method", "AvgLength")]
+
+stats_pois <- reshape(precision_data_pois,
+idvar = c("Reps_m", "Size_n", "Alpha"),
+timevar = "Method",
+direction = "wide")
+
+colnames(stats_pois) <- gsub("AvgLength.", "", colnames(stats_pois))
+
+stats_pois <- stats_pois[order(stats_pois$Reps_m,
+stats_pois$Size_n,
+stats_pois$Alpha), ]
+
+print(stats_pois, row.names = FALSE)
+
+```
+
+```{r}
+coverage_data_pois <- results_poisson[, c("Reps_m", "Size_n", "Alpha", "Method", "Coverage")]
+
+cov_pois <- reshape(coverage_data_pois,
+idvar = c("Reps_m", "Size_n", "Alpha"),
+timevar = "Method",
+direction = "wide")
+
+colnames(cov_pois) <- gsub("Coverage.", "", colnames(cov_pois))
+
+cov_pois$Target <- 1 - cov_pois$Alpha
+
+cols <- c("Reps_m", "Size_n", "Alpha", "Target",
+setdiff(names(cov_pois), c("Reps_m", "Size_n", "Alpha", "Target")))
+cov_pois <- cov_pois[, cols]
+
+cov_pois <- cov_pois[order(cov_pois$Reps_m,
+cov_pois$Size_n,
+cov_pois$Alpha), ]
+
+print(cov_pois, row.names = FALSE)
+
+
+```
+
+```{r}
+plot_reps <- max(num_repetitions)
+plot_alpha <- 0.05
+plot_data_pois <- subset(results_poisson,
+Reps_m == plot_reps & Alpha == plot_alpha)
+
+methods_pois <- unique(plot_data_pois$Method)
+colors <- c("red", "blue", "darkgreen")
+pch_types <- 1:3
+
+par(mfrow = c(1, 2))
+
+y_min <- min(plot_data_pois$Coverage, 1 - plot_alpha) - 0.02
+y_max <- max(plot_data_pois$Coverage, 1 - plot_alpha) + 0.02
+
+plot(range(sample_sizes), c(y_min, y_max), type = "n",
+xlab = "Sample Size (n)", ylab = "Coverage Probability",
+main = paste("Coverage (Alpha =", plot_alpha, ")"))
+
+abline(h = 1 - plot_alpha, col = "gray", lty = 2, lwd = 2)
+
+for (i in 1:length(methods_pois)) {
+sub_d <- subset(plot_data_pois, Method == methods_pois[i])
+sub_d <- sub_d[order(sub_d$Size_n), ]
+lines(sub_d$Size_n, sub_d$Coverage,
+col = colors[i], type = "b",
+pch = pch_types[i], lwd = 1.5)
+}
+
+legend("bottomright", legend = methods_pois,
+col = colors, pch = pch_types, lty = 1,
+cex = 0.8, bg = "white")
+
+y_rng <- range(plot_data_pois$AvgLength, na.rm = TRUE)
+
+plot(range(sample_sizes), y_rng, type = "n",
+xlab = "Sample Size (n)", ylab = "Average Length",
+main = "Interval Length (Precision)")
+
+for (i in 1:length(methods_pois)) {
+sub_d <- subset(plot_data_pois, Method == methods_pois[i])
+sub_d <- sub_d[order(sub_d$Size_n), ]
+lines(sub_d$Size_n, sub_d$AvgLength,
+col = colors[i], type = "b",
+pch = pch_types[i], lwd = 1.5)
+}
+
+legend("topright", legend = methods_pois,
+col = colors, pch = pch_types, lty = 1,
+cex = 0.8, bg = "white")
+
+
+```
+As we can see, for the Poisson case all three approaches based on normal approximation perform quite similarly.
+
+1) The method using the true variance (“Norm(theta)”) shows very stable coverage, staying very close to the nominal level for all sample sizes.
+2) The quadratic method (“Norm(quadratic)”), obtained by solving the inequality for theta, behaves almost identically, with coverage only slightly fluctuating around 0.95
+3) The Student–t based interval works a bit worse for the smallest sample sizes , but its performance quickly improves as n grows
+In terms of precision, all three methods produce intervals of almost the same average length, which decreases as the sample size increases.
