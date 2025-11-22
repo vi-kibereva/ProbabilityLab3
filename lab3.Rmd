@@ -4,7 +4,7 @@
 
 Problem 1: Viktoriya Kibyeryeva\
 Problem 2: Arsen Botkso\
-Problem 3:\
+Problem 3: Nazar Mykolaichuk\
 
 # Problem 1
 
@@ -246,8 +246,7 @@ The roots of this quadratic equation are $$
 \sqrt{\left(2\bar X + \frac{z_\beta^2}{n}\right)^2 - 4\bar X^2}}{2}.
 $$
 
-So the confidence interval is 
-$[\theta_1,\ \theta_2],$
+So the confidence interval is $[\theta_1,\ \theta_2],$
 
 ### 4) Using student distribution
 
@@ -256,7 +255,6 @@ We approximate the standard error using the sample standard deviation $s = \sqrt
 So our confidence interval is
 
 $\overline{X} \pm t_{n-1,\alpha/2}\,\dfrac{s}{\sqrt{n}}$
-
 
 ```{r}
 
@@ -409,9 +407,110 @@ cex = 0.8, bg = "white")
 
 
 ```
+
 As we can see, for the Poisson case all three approaches based on normal approximation perform quite similarly.
 
-1) The method using the true variance (“Norm(theta)”) shows very stable coverage, staying very close to the nominal level for all sample sizes.
-2) The quadratic method (“Norm(quadratic)”), obtained by solving the inequality for theta, behaves almost identically, with coverage only slightly fluctuating around 0.95
-3) The Student–t based interval works a bit worse for the smallest sample sizes , but its performance quickly improves as n grows
-In terms of precision, all three methods produce intervals of almost the same average length, which decreases as the sample size increases.
+1)  The method using the true variance (“Norm(theta)”) shows very stable coverage, staying very close to the nominal level for all sample sizes.
+2)  The quadratic method (“Norm(quadratic)”), obtained by solving the inequality for theta, behaves almost identically, with coverage only slightly fluctuating around 0.95
+3)  The Student–t based interval works a bit worse for the smallest sample sizes , but its performance quickly improves as n grows In terms of precision, all three methods produce intervals of almost the same average length, which decreases as the sample size increases.
+
+# Problem 3
+
+### (a-c)
+
+```{r}
+mu <- 10
+sigma_sq_true <- 4
+sigma <- sqrt(sigma_sq_true)
+n_values <- c(10, 50, 100, 1000)
+m_reps <- 10000 # Number of repetitions to estimate Expectation
+
+results_var <- data.frame()
+
+for (n in n_values) {
+  
+  # --- Task (a): Write code to find variance ---
+  # Generate M samples of size n
+  data <- matrix(rnorm(n * m_reps, mean = mu, sd = sigma), nrow = n)
+  
+  # Calculate sample means for each repetition (column)
+  x_bar <- colMeans(data)
+  
+  # Calculate Sum of Squared Errors (SSE) manually: sum((xi - x_bar)^2)
+  # We subtract the column mean from every element in that column
+  centered_data <- data - matrix(x_bar, nrow = n, ncol = m_reps, byrow = TRUE)
+  sse <- colSums(centered_data^2)
+  
+  # --- Task (b): Find sigma^2_n and sigma^2_{n-1} ---
+  
+  # Estimator 1: Biased (divide by n)
+  var_est_n <- sse / n
+  
+  # Estimator 2: Unbiased (divide by n-1)
+  var_est_n_minus_1 <- sse / (n - 1)
+  
+  # --- Task (c): Find the Biases ---
+  # Bias = E[Estimator] - True_Parameter
+  
+  # Estimate E[] by taking the mean of our M repetitions
+  E_var_n <- mean(var_est_n)
+  E_var_n_minus_1 <- mean(var_est_n_minus_1)
+  
+  bias_n <- E_var_n - sigma_sq_true
+  bias_n_minus_1 <- E_var_n_minus_1 - sigma_sq_true
+  
+  # Store results
+  results_var <- rbind(results_var, data.frame(
+    Sample_Size = n,
+    True_Var = sigma_sq_true,
+    E_n = E_var_n,
+    Bias_n = bias_n,
+    E_n_1 = E_var_n_minus_1,
+    Bias_n_1 = bias_n_minus_1
+  ))
+}
+
+# Print table with 5 digits for precision
+print(format(results_var, digits = 5))
+```
+
+### (d) Comment on the results for different values of n Looking at the simulation results above: Estimator σ n 2 ​
+
+```         
+(Biased): For small sample sizes (e.g., n=10), this estimator significantly underestimates the true variance (Negative Bias). However, as n increases to 1000, the bias approaches zero. This suggests it is asymptotically unbiased. Estimator σ n−1 2 ​\
+(Unbiased): The bias is consistently extremely close to 0 regardless of the sample size (fluctuating only due to simulation noise). This suggests it is an unbiased estimator for all n.
+```
+
+### (e) Derive analytically the expected value of each estimator We know that for X i ​
+
+```         
+∼N(μ,σ 2 ), the sample mean variance is Var( X ˉ )=σ 2 /n. First, let's look at the expectation of the sum of squares ∑(X i ​\
+− X ˉ ) 2 :
+```
+
+$$\sum_{i=1}^n (X_i - \bar{X})^2 = \sum_{i=1}^n ((X_i - \mu) - (\bar{X} - \mu))^2 \\ = \sum_{i=1}^n (X_i - \mu)^2 - 2(\bar{X} - \mu)\sum_{i=1}^n(X_i - \mu) + n(\bar{X} - \mu)^2 $$Since $\sum(X_i - \mu) = n(\bar{X} - \mu)$: $$= \sum\_{i=1}^n (X\_i - \mu)^2 - n(\bar{X} - \mu)^2 $$Now we take the Expected Value. Recalling that $E[(Y-E[Y])^2] = \operatorname{Var}(Y)$: $$
+E\left[ \sum (X_i - \bar{X})^2 \right] = \sum_{i=1}^n \operatorname{Var}(X_i) - n \operatorname{Var}(\bar{X}) $$$$ = n\sigma^2 - n\left( \frac{\sigma^2}{n} \right) = n\sigma^2 - \sigma^2 = (n-1)\sigma^2 $$Now we calculate the expected value for both estimators:
+
+1.  For σ n 2 ​\
+    :
+
+$$E[\sigma^2_n] = E\left[ \frac{1}{n} \sum (X_i - \bar{X})^2 \right] = \frac{1}{n} (n-1)\sigma^2 = \frac{n-1}{n}\sigma^2 $$<!-- -->2. For σ n−1 2 ​\
+:
+
+$$E[\sigma^2_{n-1}] = E\left[ \frac{1}{n-1} \sum (X_i - \bar{X})^2 \right] = \frac{1}{n-1} (n-1)\sigma^2 = \sigma^2 $$
+
+### (f) Show mathematically which estimator is unbiased
+
+An estimator $\hat{\theta}$ is unbiased if $\operatorname{Bias}(\hat{\theta}) = E[\hat{\theta}] - \theta = 0$. 1. **For** $\sigma^2_{n-1}$: $$\operatorname{Bias} = E[\sigma^2_{n-1}] - \sigma^2 = \sigma^2 - \sigma^2 = 0$$ **Conclusion:** $\sigma^2_{n-1}$ is an **unbiased** estimator. 2. **For** $\sigma^2_n$: $$\operatorname{Bias} = E[\sigma^2_n] - \sigma^2 = \frac{n-1}{n}\sigma^2 - \sigma^2 = \sigma^2(1 - \frac{1}{n} - 1) = -\frac{\sigma^2}{n}$$ **Conclusion:** $\sigma^2_n$ is a **biased** estimator (specifically, it is negatively biased).
+
+### (g) Comment on the results behind theoretical and practical task
+
+The theoretical derivation perfectly explains the practical simulation results: \* The theory predicts the bias of $\sigma^2_n$ is $-\sigma^2/n$. For $n=10$ and $\sigma^2=4$, the theoretical bias is $-0.4$. Looking at our simulation table for $n=10$, the `Bias_n` column matches this value very closely. \* The theory predicts $\sigma^2_{n-1}$ has 0 bias, which matches our `Bias_n_1` column. \* The simulation confirms that while $\sigma^2_n$ is biased, the bias shrinks as $n$ grows ($\lim_{n\to\infty} -\frac{\sigma^2}{n} = 0$), confirming consistency. However, for small samples, the unbiased estimator (dividing by $n-1$) is strictly superior.\$\$
+
+As we can see, the simulation results perfectly align with the theoretical derivation regarding the bias of variance estimators.
+
+1.  The estimator using n in the denominator (σn2​) is **biased**: it systematically underestimates the true population variance. This negative bias is significant at small sample sizes (e.g., n=10) but shrinks towards zero as the sample size increases (asymptotically unbiased).
+
+2.  The estimator using n−1 in the denominator (σn−12​) is **unbiased**: its average value consistently matches the true parameter σ2=4 regardless of the sample size.
+
+3.  Consequently, for small sample sizes, using σn−12​ (Bessel's correction) is strictly necessary to avoid underestimation, while for very large samples, the difference between the two methods becomes negligible.
